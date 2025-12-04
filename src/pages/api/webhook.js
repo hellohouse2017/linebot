@@ -24,27 +24,45 @@ const COLORS = { SYSTEM: "#70665C", ACTION: "#9C8673", ALERT: "#B58282", THEME: 
 const ADMIN_PHONE = "0932828922";
 
 // Vercel API Handler
+// ...前面的 import 和設定都不變...
+
+// Vercel API Handler (除錯修正版)
 export default async function handler(req, res) {
+  // 1. 允許 GET 請求 (讓您可以直接用瀏覽器開啟網址測試)
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      status: 'alive',
+      message: '你的機器人伺服器運作正常！請回到 LINE Developers 按下 Verify。'
+    });
+  }
+
+  // 2. 處理 LINE 的 POST 請求
   if (req.method === 'POST') {
-    // 這裡通常建議加簽章驗證，但在 Vercel 簡單實作可先跳過，直接處理 events
-    // 若要嚴謹驗證需搭配 middleware，但在 Next.js API Route 需處理 body parser
-    
     const events = req.body.events;
+
+    // 如果 LINE Verify 送來空事件，直接回傳 200
+    if (!events || events.length === 0) {
+      return res.status(200).json({ status: 'ok', message: 'Verification successful' });
+    }
 
     try {
       const results = await Promise.all(events.map(async (event) => {
         return handleEvent(event);
       }));
-      res.status(200).json(results);
+      return res.status(200).json(results);
     } catch (err) {
-      console.error(err);
-      res.status(500).end();
+      console.error("Error handling events:", err);
+      // 就算出錯，也回傳 200 給 LINE，避免它一直重試
+      return res.status(200).json({ status: 'error', message: err.message });
     }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
+
+  // 其他方法回傳 405
+  res.setHeader('Allow', ['POST', 'GET']);
+  res.status(405).end(`Method ${req.method} Not Allowed`);
 }
+
+// ...後面的 handleEvent 和其他函數保持不變...
 
 // 事件處理主邏輯
 async function handleEvent(event) {
